@@ -51,10 +51,13 @@ function mainMenu() {
                 updateEmployeeRole();
                 break;
             case 'Update an Employee Manager':
+                updateEmployeeManager();
                 break;
             case 'View Employees by Manager':
+                viewEmployeeByManager();
                 break;
             case 'View Employees by Department':
+                viewEmployeeByDepartment();
                 break;
             case 'Delete a Department':
                 break;
@@ -95,6 +98,83 @@ function viewEmployee() {
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => console.table(rows))
         .then(closeApp);
+}
+
+function viewEmployeeByManager() {
+    inquirer.prompt([
+        {
+            type: 'number',
+            name: 'manager_id',
+            message: "Which manager ID would you like to view employees of?\n(Can be left blank to view employees without managers)"
+        }
+    ]).then(data => {
+        if (!data.manager_id) {
+            const sql =
+                `SELECT * FROM employees
+                WHERE manager_id IS NULL`;
+            db.then(conn => conn.query(sql))
+                .then(([rows, fields]) => {
+                    if (rows.length === 0) {
+                        console.log('There are no employees without managers.');
+                        closeApp();
+                    } else {
+                        console.table(rows);
+                        closeApp();
+                    }
+                });
+        } else {
+            const sql =
+                `SELECT * FROM employees
+                WHERE manager_id = ?`;
+            const params = [data.manager_id];
+            db.then(conn => conn.query(sql, params))
+                .then(([rows, fields]) => {
+                    if (rows.length === 0) {
+                        console.log('There are no employees under this manager ID.');
+                        closeApp();
+                    } else {
+                        console.table(rows);
+                        closeApp();
+                    }
+                });
+        }
+    });
+}
+
+function viewEmployeeByDepartment() {
+    let departmentList = [];
+    const sql = `SELECT * FROM departments`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'department_id',
+                    message: "Which department would you like to view the employees of?",
+                    choices: departmentList
+                }
+            ]).then(data => {
+                let { department_id } = data;
+                data.department_id = departmentList.indexOf(department_id) + 1;
+                const sql =
+                    `SELECT employees.id, employees.first_name, employees.last_name, roles.title, employees.manager_id, departments.name
+                    FROM employees
+                    CROSS JOIN roles ON employees.role_id = roles.id
+                    LEFT JOIN departments ON roles.department_id = departments.id
+                    WHERE departments.id = ?`;
+                const params = [data.department_id];
+                db.then(conn => conn.query(sql, params))
+                    .then(([rows, fields]) => {
+                        if (rows.length === 0) {
+                            console.log('There are no employees under this department.');
+                            closeApp();
+                        } else {
+                            console.table(rows);
+                            closeApp();
+                        }
+                    });
+            });
+        });
 }
 
 function addDepartment() {
@@ -212,7 +292,7 @@ function updateEmployeeRole() {
                 {
                     type: 'list',
                     name: 'employee_id',
-                    message: "Which employee would you like to update?",
+                    message: "Which employee would you like to change the role?",
                     choices: employeeList
                 },
                 {
@@ -239,7 +319,37 @@ function updateEmployeeRole() {
 }
 
 function updateEmployeeManager() {
-    
+    let employeeList = [];
+    const sql = `SELECT first_name, last_name FROM employees`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name))
+        .then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'employee_id',
+                    message: "Which employee would you like to change the manager?",
+                    choices: employeeList
+                },
+                {
+                    type: 'number',
+                    name: 'manager_id',
+                    message: "What is the employee's new manager's ID? (Can be left empty)"
+                }
+            ]).then(data => {
+                let { employee_id, manager_id } = data;
+                data.employee_id = employeeList.indexOf(employee_id) + 1;
+                const sql =
+                    `UPDATE employees SET manager_id = ?
+                    WHERE id = ?`;
+                const params = [data.manager_id, data.employee_id];
+                db.then(conn => conn.query(sql, params))
+                    .then(() => {
+                        console.log(`Successfully updated ${employee_id}'s manager ID to ${manager_id}!`);
+                        closeApp();
+                    });
+            });
+        });
 }
 
 function closeApp() {
