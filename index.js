@@ -9,21 +9,54 @@ function mainMenu() {
             name: 'menuChoice',
             message: 'What would you like to do?',
             choices: [
+                'View ...',
+                'Add ...',
+                'Update ...',
+                'Delete ...',
+                'Close Application'
+            ]
+        }
+    ]).then(data => {
+        let { menuChoice } = data;
+        switch(menuChoice) {
+            case 'View ...':
+                viewMenu();
+                break;
+            case 'Add ...':
+                addMenu();
+                break;
+            case 'Update ...':
+                updateMenu();
+                break;
+            case 'Delete ...':
+                deleteMenu();
+                break;
+            case 'Close Application':
+                console.log('Thank you, have a nice day!');
+                console.log('Closing connection to the database.');
+                db.then(conn => conn.end());
+                break;
+            default:
+                console.log('Something broke!');
+                break;
+        }
+    });
+}
+
+function viewMenu() {
+    inquirer.prompt([
+        {
+            type: 'list',
+            name: 'menuChoice',
+            message: 'What would you like to view?',
+            choices: [
                 'View All Departments',
                 'View All Roles',
                 'View All Employees',
-                'Add a Department',
-                'Add a Role',
-                'Add an Employee',
-                'Update an Employee Role',
-                'Update an Employee Manager',
                 'View Employees by Manager',
                 'View Employees by Department',
-                'Delete a Department',
-                'Delete a Role',
-                'Delete an Employee',
                 'View Total Utilized Budget of a Department',
-                'Close Application'
+                'Return to Main Menu'
             ]
         }
     ]).then(data => {
@@ -38,6 +71,40 @@ function mainMenu() {
             case 'View All Employees':
                 viewEmployee();
                 break;
+            case 'View Employees by Manager':
+                viewEmployeeByManager();
+                break;
+            case 'View Employees by Department':
+                viewEmployeeByDepartment();
+                break;
+            case 'View Total Utilized Budget of a Department':
+                break;
+            case 'Return to Main Menu':
+                mainMenu();
+                break;
+            default:
+                console.log('Something broke!');
+                break;
+        }
+    });
+}
+
+function addMenu() {
+    inquirer.prompt([
+        {
+            type: 'list',
+            name: 'menuChoice',
+            message: 'What would you like to add?',
+            choices: [
+                'Add a Department',
+                'Add a Role',
+                'Add an Employee',
+                'Return to Main Menu'
+            ]
+        }
+    ]).then(data => {
+        let { menuChoice } = data;
+        switch(menuChoice) {
             case 'Add a Department':
                 addDepartment();
                 break;
@@ -47,36 +114,77 @@ function mainMenu() {
             case 'Add an Employee':
                 addEmployee();
                 break;
-            case 'Update an Employee Role':
-                updateEmployeeRole();
-                break;
-            case 'Update an Employee Manager':
-                updateEmployeeManager();
-                break;
-            case 'View Employees by Manager':
-                viewEmployeeByManager();
-                break;
-            case 'View Employees by Department':
-                viewEmployeeByDepartment();
-                break;
-            case 'Delete a Department':
-                break;
-            case 'Delete a Role':
-                break;
-            case 'Delete an Employee':
-                break;
-            case 'View Total Utilized Budget of a Department':
-                break;
-            case 'Close Application':
-                console.log('Thank you, have a nice day!');
-                console.log('Closing connection to the database.');
-                db.then(conn => conn.end());
+            case 'Return to Main Menu':
+                mainMenu();
                 break;
             default:
                 console.log('Something broke!');
                 break;
         }
     });
+}
+
+function updateMenu() {
+    inquirer.prompt([
+        {
+            type: 'list',
+            name: 'menuChoice',
+            message: 'What would you like to update?',
+            choices: [
+                'Update an Employee Role',
+                'Update an Employee Manager',
+                'Return to Main Menu'
+            ]
+        }
+    ]).then(data => {
+        let { menuChoice } = data;
+        switch(menuChoice) {
+            case 'Update an Employee Role':
+                updateEmployeeRole();
+                break;
+            case 'Update an Employee Manager':
+                updateEmployeeManager();
+                break;
+            case 'Return to Main Menu':
+                mainMenu();
+                break;
+            default:
+                console.log('Something broke!');
+                break;
+        }
+    }); 
+}
+
+function deleteMenu() {
+    inquirer.prompt([
+        {
+            type: 'list',
+            name: 'menuChoice',
+            message: 'What would you like to delete?',
+            choices: [
+                'Delete a Department',
+                'Delete a Role',
+                'Delete an Employee',
+                'Return to Main Menu'
+            ]
+        }
+    ]).then(data => {
+        let { menuChoice } = data;
+        switch(menuChoice) {
+            case 'Delete a Department':
+                break;
+            case 'Delete a Role':
+                break;
+            case 'Delete an Employee':
+                break;
+            case 'Return to Main Menu':
+                mainMenu();
+                break;
+            default:
+                console.log('Something broke!');
+                break;
+        }
+    }); 
 }
 
 function viewDepartment() {
