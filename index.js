@@ -173,10 +173,13 @@ function deleteMenu() {
         let { menuChoice } = data;
         switch(menuChoice) {
             case 'Delete a Department':
+                deleteDepartment();
                 break;
             case 'Delete a Role':
+                deleteRole();
                 break;
             case 'Delete an Employee':
+                deleteEmployee();
                 break;
             case 'Return to Main Menu':
                 mainMenu();
@@ -398,7 +401,7 @@ function addEmployee() {
                 {
                     type: 'list',
                     name: 'role_id',
-                    message: "Which is the employee's role?",
+                    message: "What is the employee's role?",
                     choices: roleList
                 },
                 {
@@ -408,16 +411,23 @@ function addEmployee() {
                 }
         ]).then(data => {
             let { role_id } = data;
-            data.role_id = roleList.indexOf(role_id) + 1;
             const sql =
-                `INSERT INTO employees (first_name, last_name, role_id, manager_id)
-                VALUES (?, ?, ?, ?)`;
-            const params = Object.values(data);
+                `SELECT id FROM roles
+                WHERE title = ?`;
+            const params = role_id;
             db.then(conn => conn.query(sql, params))
+                .then(([rows, fields]) => data.role_id = rows[0].id)
                 .then(() => {
-                    console.log(`Successfully added ${params[0]} ${params[1]}!`);
-                    closeApp();
-                });
+                    const sql =
+                        `INSERT INTO employees (first_name, last_name, role_id, manager_id)
+                        VALUES (?, ?, ?, ?)`;
+                    const params = Object.values(data);
+                    db.then(conn => conn.query(sql, params))
+                        .then(() => {
+                            console.log(`Successfully added ${params[0]} ${params[1]}!`);
+                            closeApp();
+                        });
+                })
         });
     });
 }
@@ -447,16 +457,30 @@ function updateEmployeeRole() {
                 }
             ]).then(data => {
                 let { employee_id, role_id } = data;
-                data.employee_id = employeeList.indexOf(employee_id) + 1;
-                data.role_id = roleList.indexOf(role_id) + 1;
                 const sql =
-                    `UPDATE employees SET role_id = ?
-                    WHERE id = ?`;
-                const params = [data.role_id, data.employee_id];
+                    `SELECT id FROM employees
+                    WHERE first_name = ? AND last_name = ?`;
+                const params = employee_id.split(" ");
                 db.then(conn => conn.query(sql, params))
+                    .then(([rows, fields]) => data.employee_id = rows[0].id)
                     .then(() => {
-                        console.log(`Successfully updated ${employee_id}'s role to ${role_id}!`);
-                        closeApp();
+                        const sql =
+                            `SELECT id FROM roles
+                            WHERE title = ?`;
+                        const params = role_id;
+                        db.then(conn => conn.query(sql, params))
+                            .then(([rows, fields]) => data.role_id = rows[0].id)
+                            .then(() => {
+                                const sql =
+                                    `UPDATE employees SET role_id = ?
+                                    WHERE id = ?`;
+                                const params = [data.role_id, data.employee_id];
+                                db.then(conn => conn.query(sql, params))
+                                    .then(() => {
+                                        console.log(`Successfully updated ${employee_id}'s role to ${role_id}!`);
+                                        closeApp();
+                                    });
+                            })
                     });
             });
         });
@@ -491,6 +515,98 @@ function updateEmployeeManager() {
                     .then(() => {
                         console.log(`Successfully updated ${employee_id}'s manager ID to ${manager_id}!`);
                         closeApp();
+                    });
+            });
+        });
+}
+
+function deleteDepartment() {
+    let departmentList = [];
+    const sql = `SELECT * FROM departments`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'department_id',
+                    message: "Which department would you like to delete?",
+                    choices: departmentList
+                }
+            ]).then(data => {
+                let { department_id } = data;
+                data.department_id = departmentList.indexOf(department_id) + 1;
+                const sql =
+                    `DELETE FROM departments
+                    WHERE id = ?`;
+                const params = [data.department_id];
+                db.then(conn => conn.query(sql, params))
+                    .then(() => {
+                        console.log(`Successfully deleted ${department_id}!`);
+                        closeApp();
+                    });
+            });
+        });
+}
+
+function deleteRole() {
+    let roleList = [];
+    const sql = `SELECT * FROM roles`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => roleList = rows.map(({ title }) => title)).then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'role_id',
+                    message: "Which role would you like to delete?",
+                    choices: roleList
+                }
+            ]).then(data => {
+                let { role_id } = data;
+                data.role_id = roleList.indexOf(role_id) + 1;
+                const sql =
+                    `DELETE FROM roles
+                    WHERE id = ?`;
+                const params = [data.role_id];
+                db.then(conn => conn.query(sql, params))
+                    .then(() => {
+                        console.log(`Successfully deleted ${role_id}!`);
+                        closeApp();
+                    });
+            });
+        });
+}
+
+function deleteEmployee() {
+    let employeeList = [];
+    const sql = `SELECT first_name, last_name FROM employees`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => employeeList = rows.map(({ first_name, last_name}) => first_name + " " + last_name))
+        .then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'employee_id',
+                    message: "Which employee would you like to delete?",
+                    choices: employeeList
+                }
+            ]).then(data => {
+                let { employee_id } = data;
+                const sql =
+                    `SELECT id FROM employees
+                    WHERE first_name = ? AND last_name = ?`;
+                const params = employee_id.split(" ");
+                db.then(conn => conn.query(sql, params))
+                    .then(([rows, fields]) => data.employee_id = rows[0].id)
+                    .then(() => {
+                        const sql =
+                            `DELETE FROM employees
+                            WHERE id = ?`;
+                        const params = data.employee_id;
+                        db.then(conn => conn.query(sql, params))
+                            .then(() => {
+                                console.log(`Successfully deleted ${employee_id}!`);
+                                closeApp();
+                            });
                     });
             });
         });
