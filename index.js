@@ -78,6 +78,7 @@ function viewMenu() {
                 viewEmployeeByDepartment();
                 break;
             case 'View Total Utilized Budget of a Department':
+                viewTotalDepartmentBudget();
                 break;
             case 'Return to Main Menu':
                 mainMenu();
@@ -280,6 +281,41 @@ function viewEmployeeByDepartment() {
                             console.table(rows);
                             closeApp();
                         }
+                    });
+            });
+        });
+}
+
+function viewTotalDepartmentBudget() {
+    let departmentList = [];
+    const sql = `SELECT * FROM departments`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'department_id',
+                    message: "Which department would you like to view the total budget of?",
+                    choices: departmentList
+                }
+            ]).then(data => {
+                let { department_id } = data;
+                data.department_id = departmentList.indexOf(department_id) + 1;
+                const sql =
+                    `SELECT roles.salary FROM employees
+                    CROSS JOIN roles ON employees.role_id = roles.id
+                    LEFT JOIN departments ON roles.department_id = departments.id
+                    WHERE departments.id = ?`;
+                const params = [data.department_id];
+                db.then(conn => conn.query(sql, params))
+                    .then(([rows, fields]) => {
+                        let budget = rows.map(({ salary }) => salary);
+                        let totalBudget = 0;
+                        budget.forEach(element => {
+                            totalBudget += parseFloat(element);
+                        });
+                        console.log(`The total budget for ${department_id} is $${totalBudget}.`);
+                        closeApp();
                     });
             });
         });
