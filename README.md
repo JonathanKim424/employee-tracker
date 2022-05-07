@@ -23,6 +23,9 @@ For ease of use, the application can be started with 'npm start'. This can be mo
 
 ![Application Screenshot](./assets/images/application-screenshot.jpg?raw=tru "Application Screenshot")
 
+Video of Application:
+https://drive.google.com/file/d/1rrpL-eCNmRR9Y0Ov9-fLEBeHkCqiBG_5/view?usp=sharing
+
 ## Tests
 There are no tests for this application.
 
