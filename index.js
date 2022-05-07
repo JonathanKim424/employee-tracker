@@ -2,6 +2,8 @@ const cTable = require('console.table');
 const inquirer = require('inquirer');
 const db = require('./config/connection');
 
+// main call function to start the inquirer prompts
+// destructures prompt to multiple menu items for easier readability
 function mainMenu() {
     inquirer.prompt([
         {
@@ -43,6 +45,7 @@ function mainMenu() {
     });
 }
 
+// Consolidated view calls
 function viewMenu() {
     inquirer.prompt([
         {
@@ -90,6 +93,7 @@ function viewMenu() {
     });
 }
 
+// Consolidated add calls
 function addMenu() {
     inquirer.prompt([
         {
@@ -125,6 +129,7 @@ function addMenu() {
     });
 }
 
+// Consolidated update calls
 function updateMenu() {
     inquirer.prompt([
         {
@@ -156,6 +161,7 @@ function updateMenu() {
     }); 
 }
 
+// Consolidated delete calls
 function deleteMenu() {
     inquirer.prompt([
         {
@@ -191,9 +197,9 @@ function deleteMenu() {
     }); 
 }
 
-// database queries
-//
+// database queries start
 
+// Calls all departments
 function viewDepartment() {
     const sql =
         `SELECT
@@ -205,6 +211,7 @@ function viewDepartment() {
         .then(closeApp);
 }
 
+// Calls all roles, joins department to roles
 function viewRole() {
     const sql =
         `SELECT 
@@ -219,6 +226,8 @@ function viewRole() {
         .then(closeApp);
 }
 
+// Calls all employees
+// Joins roles and departments to employees
 function viewEmployee() {
     const sql =
         `SELECT
@@ -237,16 +246,20 @@ function viewEmployee() {
         .then(closeApp);
 }
 
+// Displays employees that have manager_id listed as well as a none option for manager_id = null
 function viewEmployeeByManager() {
     let managerList = [];
     let managerIdList = [];
+    // Calls employee list filtered by distinct manager_id
     const sql =
         `SELECT DISTINCT manager_id FROM employees`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => managerIdList = rows.map(({ manager_id }) => manager_id)).then(() => {
+            // if manager list contains null, removes null for processing
             if (managerIdList.indexOf(null) > -1) {
                 managerIdList.splice(managerIdList.indexOf(null), 1);
             }
+            // creates variable that contains only existing manager_ids so that it can be inserted in the MySQL call
             let managerIds = ``;
             managerIdList.forEach(element => {
                 if (managerIds.length < managerIdList.length) {
@@ -255,6 +268,7 @@ function viewEmployeeByManager() {
                     managerIds += element;
                 }
             });
+            // MySQL call to filter employees to only provide names as given by manager_id list
             const sql =
                 `SELECT
                     CONCAT(first_name, ' ', last_name) AS name
@@ -262,6 +276,8 @@ function viewEmployeeByManager() {
                 WHERE id IN (${managerIds})`
             db.then(conn => conn.query(sql))
                 .then(([rows, fields]) => managerList = rows.map(({ name }) => name)).then(() => {
+                    // adds None option for where manager_id = null
+                    // inquirer prompt to allow user to select manager by name
                     managerList.push("None");
                     inquirer.prompt([
                         {
@@ -271,6 +287,7 @@ function viewEmployeeByManager() {
                             choices: managerList
                         }
                     ]).then(data => {
+                        // if none is selected, MySQL call to filter employees where manager_id = null
                         if (data.manager_id === 'None') {
                             const sql =
                                 `SELECT
@@ -295,6 +312,7 @@ function viewEmployeeByManager() {
                                     }
                                 });
                         } else {
+                            // MySQL call to filter employees by manager id
                             const sql =
                                 `SELECT
                                     A.id AS id,
@@ -308,6 +326,7 @@ function viewEmployeeByManager() {
                                 LEFT JOIN departments ON roles.department_id = departments.id
                                 LEFT JOIN employees B ON B.id = A.manager_id
                                 WHERE A.manager_id = ?`;
+                            // uses previously created managerIdList to match the employee id of the respective manager
                             const params = managerIdList[managerList.indexOf(data.manager_id)];
                             db.then(conn => conn.query(sql, params))
                                 .then(([rows, fields]) => {
@@ -320,11 +339,14 @@ function viewEmployeeByManager() {
         });
 }
 
+// filters employees by department
 function viewEmployeeByDepartment() {
+    // calls department list to create array of department names
     let departmentList = [];
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            // adds none to department list and inquirer prompts user to select a department by name or none
             departmentList.push('None');
             inquirer.prompt([
                 {
@@ -334,6 +356,7 @@ function viewEmployeeByDepartment() {
                     choices: departmentList
                 }
             ]).then(data => {
+                // if none is selected, filters employees where department name is null
                 if (data.department_id === 'None') {
                     const sql =
                         `SELECT
@@ -359,6 +382,7 @@ function viewEmployeeByDepartment() {
                             }
                         });
                 } else {
+                    // filters employees by department name
                     const sql =
                         `SELECT
                             A.id AS id,
@@ -388,11 +412,14 @@ function viewEmployeeByDepartment() {
         });
 }
 
+// views total department budget
 function viewTotalDepartmentBudget() {
+    // calls department so that a list of names can be displayed
     let departmentList = [];
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            // inquirer prompt user to select an existing department name
             inquirer.prompt([
                 {
                     type: 'list',
@@ -401,6 +428,7 @@ function viewTotalDepartmentBudget() {
                     choices: departmentList
                 }
             ]).then(data => {
+                // selects salary from role table where results are filtered by department name
                 const sql =
                     `SELECT roles.salary FROM employees
                     CROSS JOIN roles ON employees.role_id = roles.id
@@ -409,6 +437,7 @@ function viewTotalDepartmentBudget() {
                 const params = data.department_id;
                 db.then(conn => conn.query(sql, params))
                     .then(([rows, fields]) => {
+                        // sums salary for all returned results
                         let budget = rows.map(({ salary }) => salary);
                         let totalBudget = 0;
                         budget.forEach(element => {
@@ -421,6 +450,7 @@ function viewTotalDepartmentBudget() {
         });
 }
 
+// adds a department
 function addDepartment() {
     inquirer.prompt([
         {
@@ -441,12 +471,15 @@ function addDepartment() {
     });
 }
 
+// adds a role
 function addRole() {
+    // calls departments so that a department can be selected when creating new role
     let departmentList = [];
     let departmentIdList = [];
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => {
+            // array for both names and their associated id for query purposes
             departmentList = rows.map(({ name }) => name);
             departmentIdList = rows.map(({ id }) => id);
         }).then(() => {
@@ -468,6 +501,7 @@ function addRole() {
                 choices: departmentList
             }
         ]).then(data => {
+            // department_id indexed instead of using departments.name for ease of MySQL query
             let { department_id } = data;
             data.department_id = departmentIdList[departmentList.indexOf(department_id)];
             const sql =
@@ -483,7 +517,9 @@ function addRole() {
     });
 }
 
+// adds an employee
 function addEmployee() {
+    // calls both roles and employees to provide user selection of role and manager
     let roleList = [];
     let employeeList = [];
     const sql = `SELECT * FROM roles`;
@@ -493,6 +529,7 @@ function addEmployee() {
             db.then(conn => conn.query(sql))
                 .then(([rows, fields]) => employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name))
                 .then(() => {
+                    // adds none to employeeList so that user can select none for manager
                     employeeList.push('None');
                     inquirer.prompt([
                         {
@@ -518,6 +555,7 @@ function addEmployee() {
                             choices: employeeList
                         }
                     ]).then(data => {
+                        // calls role_id for query purposes
                         let { role_id, manager_id } = data;
                         const sql =
                             `SELECT id FROM roles
@@ -526,6 +564,7 @@ function addEmployee() {
                         db.then(conn => conn.query(sql, params))
                             .then(([rows, fields]) => data.role_id = rows[0].id)
                             .then(() => {
+                                // if manager is set to none, modifies query to set null
                                 if (manager_id === 'None') {
                                     const sql =
                                         `INSERT INTO employees (first_name, last_name, role_id, manager_id)
@@ -537,6 +576,7 @@ function addEmployee() {
                                             closeApp();
                                         });
                                 } else {
+                                    // queries employee id for where user selected manager for query purposes
                                     const sql =
                                         `SELECT id FROM employees
                                         WHERE first_name = ? AND last_name = ?`;
@@ -561,7 +601,9 @@ function addEmployee() {
     });
 }
 
+// updates employee role
 function updateEmployeeRole() {
+    // calls role and employee list for user selection of which employee to modify and existing roles
     let roleList = [];
     let employeeList = [];
     const sql = `SELECT * FROM roles`;
@@ -585,6 +627,7 @@ function updateEmployeeRole() {
                     choices: roleList
                 }
             ]).then(data => {
+                // calls employee id for query purposes
                 let { employee_id, role_id } = data;
                 const sql =
                     `SELECT id FROM employees
@@ -593,6 +636,7 @@ function updateEmployeeRole() {
                 db.then(conn => conn.query(sql, params))
                     .then(([rows, fields]) => data.employee_id = rows[0].id)
                     .then(() => {
+                        // calls role id for query purposes
                         const sql =
                             `SELECT id FROM roles
                             WHERE title = ?`;
@@ -615,7 +659,9 @@ function updateEmployeeRole() {
         });
 }
 
+// updates employee's manager
 function updateEmployeeManager() {
+    // calls employee list and creates index array
     let employeeList = [];
     let employeeIdList = [];
     const sql = `SELECT id, first_name, last_name FROM employees`;
@@ -624,6 +670,8 @@ function updateEmployeeManager() {
             employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name);
             employeeIdList = rows.map(({ id }) => id);
         }).then(() => {
+            // copies array so that first inquirer prompt asks for which employee to modify
+            // second array adds none for which employee to be selected as manager
             const managerList = [...employeeList];
             managerList.push('None');
             inquirer.prompt([
@@ -640,6 +688,7 @@ function updateEmployeeManager() {
                     choices: managerList
                 }
             ]).then(data => {
+                // if manager is set to none, query sets manager_id to null
                 if (data.manager_id === 'None') {
                     const sql =
                         `UPDATE employees SET manager_id = NULL
@@ -651,6 +700,7 @@ function updateEmployeeManager() {
                             closeApp();
                         });
                 } else {
+                    // sets manager_id by user selected employee
                     const sql =
                         `UPDATE employees SET manager_id = ?
                         WHERE id = ?`;
@@ -668,7 +718,9 @@ function updateEmployeeManager() {
         });
 }
 
+// deletes a department
 function deleteDepartment() {
+    // calls department list
     let departmentList = [];
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
@@ -681,6 +733,7 @@ function deleteDepartment() {
                     choices: departmentList
                 }
             ]).then(data => {
+                // deletes department by user selected departments.name
                 const sql =
                     `DELETE FROM departments
                     WHERE name = ?`;
@@ -694,7 +747,9 @@ function deleteDepartment() {
         });
 }
 
+// deletes rolee
 function deleteRole() {
+    // calls role list
     let roleList = [];
     const sql = `SELECT * FROM roles`;
     db.then(conn => conn.query(sql))
@@ -707,6 +762,7 @@ function deleteRole() {
                     choices: roleList
                 }
             ]).then(data => {
+                // deletes role give by user selected roles.title
                 const sql =
                     `DELETE FROM roles
                     WHERE title = ?`;
@@ -720,7 +776,9 @@ function deleteRole() {
         });
 }
 
+// deletes employee
 function deleteEmployee() {
+    // calls employee list
     let employeeList = [];
     const sql = `SELECT first_name, last_name FROM employees`;
     db.then(conn => conn.query(sql))
@@ -734,6 +792,7 @@ function deleteEmployee() {
                     choices: employeeList
                 }
             ]).then(data => {
+                // destructures employee name so that it can be deleted
                 let { employee_id } = data;
                 const sql =
                     `DELETE FROM employees
@@ -748,6 +807,8 @@ function deleteEmployee() {
         });
 }
 
+// close app function to allow each function to loop the main menu
+// or quit app if user is done
 function closeApp() {
     inquirer.prompt([
         {
@@ -766,4 +827,5 @@ function closeApp() {
     });
 }
 
+// inits the application
 mainMenu();

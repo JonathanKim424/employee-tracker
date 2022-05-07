@@ -1,3 +1,4 @@
+// Creates the connection to the database, uses dotenv to provide credentials
 const mysql = require('mysql2/promise');
 
 require('dotenv').config();
