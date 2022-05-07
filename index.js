@@ -17,7 +17,7 @@ function mainMenu() {
             ]
         }
     ]).then(data => {
-        let { menuChoice } = data;
+        const { menuChoice } = data;
         switch(menuChoice) {
             case 'View ...':
                 viewMenu();
@@ -191,66 +191,133 @@ function deleteMenu() {
     }); 
 }
 
+// database queries
+//
+
 function viewDepartment() {
-    const sql = `SELECT * FROM departments`;
+    const sql =
+        `SELECT
+            id AS id,
+            name AS Department
+        FROM departments`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => console.table(rows))
         .then(closeApp);
 }
 
 function viewRole() {
-    const sql = `SELECT * FROM roles`;
+    const sql =
+        `SELECT 
+            roles.id AS id,
+            roles.title AS Role,
+            roles.salary AS Salary,
+            departments.name AS Department
+        FROM roles
+        LEFT JOIN departments ON roles.department_id = departments.id`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => console.table(rows))
         .then(closeApp);
 }
 
 function viewEmployee() {
-    const sql = `SELECT * FROM employees`;
+    const sql =
+        `SELECT
+            A.id AS id,
+            CONCAT(A.first_name, ' ', A.last_name) AS Name,
+            roles.title AS Role,
+            departments.name AS Department,
+            roles.salary AS Salary,
+            CONCAT(B.first_name, ' ', B.last_name) AS Manager
+        FROM employees A
+        LEFT JOIN roles ON A.role_id = roles.id
+        LEFT JOIN departments ON roles.department_id = departments.id
+        LEFT JOIN employees B ON B.id = A.manager_id`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => console.table(rows))
         .then(closeApp);
 }
 
 function viewEmployeeByManager() {
-    inquirer.prompt([
-        {
-            type: 'number',
-            name: 'manager_id',
-            message: "Which manager ID would you like to view employees of?\n(Can be left blank to view employees without managers)"
-        }
-    ]).then(data => {
-        if (!data.manager_id) {
+    let managerList = [];
+    let managerIdList = [];
+    const sql =
+        `SELECT DISTINCT manager_id FROM employees`;
+    db.then(conn => conn.query(sql))
+        .then(([rows, fields]) => managerIdList = rows.map(({ manager_id }) => manager_id)).then(() => {
+            if (managerIdList.indexOf(null) > -1) {
+                managerIdList.splice(managerIdList.indexOf(null), 1);
+            }
+            let managerIds = ``;
+            managerIdList.forEach(element => {
+                if (managerIds.length < managerIdList.length) {
+                    managerIds += element + ",";
+                } else {
+                    managerIds += element;
+                }
+            });
             const sql =
-                `SELECT * FROM employees
-                WHERE manager_id IS NULL`;
+                `SELECT
+                    CONCAT(first_name, ' ', last_name) AS name
+                FROM employees
+                WHERE id IN (${managerIds})`
             db.then(conn => conn.query(sql))
-                .then(([rows, fields]) => {
-                    if (rows.length === 0) {
-                        console.log('There are no employees without managers.');
-                        closeApp();
-                    } else {
-                        console.table(rows);
-                        closeApp();
-                    }
+                .then(([rows, fields]) => managerList = rows.map(({ name }) => name)).then(() => {
+                    managerList.push("None");
+                    inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'manager_id',
+                            message: "Which manager would you like to view employees of?",
+                            choices: managerList
+                        }
+                    ]).then(data => {
+                        if (data.manager_id === 'None') {
+                            const sql =
+                                `SELECT
+                                    employees.id AS id,
+                                    CONCAT(employees.first_name, ' ', employees.last_name) AS Name,
+                                    roles.title AS Role,
+                                    departments.name AS Department,
+                                    roles.salary AS Salary,
+                                    employees.manager_id AS Manager
+                                FROM employees
+                                LEFT JOIN roles ON employees.role_id = roles.id
+                                LEFT JOIN departments ON roles.department_id = departments.id
+                                WHERE manager_id IS NULL`;
+                            db.then(conn => conn.query(sql))
+                                .then(([rows, fields]) => {
+                                    if (rows.length === 0) {
+                                        console.log('There are no employees without managers.');
+                                        closeApp();
+                                    } else {
+                                        console.table(rows);
+                                        closeApp();
+                                    }
+                                });
+                        } else {
+                            const sql =
+                                `SELECT
+                                    A.id AS id,
+                                    CONCAT(A.first_name, ' ', A.last_name) AS Name,
+                                    roles.title AS Role,
+                                    departments.name AS Department,
+                                    roles.salary AS Salary,
+                                    CONCAT(B.first_name, ' ', B.last_name) AS Manager
+                                FROM employees A
+                                LEFT JOIN roles ON A.role_id = roles.id
+                                LEFT JOIN departments ON roles.department_id = departments.id
+                                LEFT JOIN employees B ON B.id = A.manager_id
+                                WHERE A.manager_id = ?`;
+                            const params = managerIdList[managerList.indexOf(data.manager_id)];
+                            db.then(conn => conn.query(sql, params))
+                                .then(([rows, fields]) => {
+                                    console.table(rows);
+                                    closeApp();
+                                });
+                        }
+                    });
                 });
-        } else {
-            const sql =
-                `SELECT * FROM employees
-                WHERE manager_id = ?`;
-            const params = [data.manager_id];
-            db.then(conn => conn.query(sql, params))
-                .then(([rows, fields]) => {
-                    if (rows.length === 0) {
-                        console.log('There are no employees under this manager ID.');
-                        closeApp();
-                    } else {
-                        console.table(rows);
-                        closeApp();
-                    }
-                });
-        }
-    });
+        });
 }
 
 function viewEmployeeByDepartment() {
@@ -258,6 +325,7 @@ function viewEmployeeByDepartment() {
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+            departmentList.push('None');
             inquirer.prompt([
                 {
                     type: 'list',
@@ -266,25 +334,56 @@ function viewEmployeeByDepartment() {
                     choices: departmentList
                 }
             ]).then(data => {
-                let { department_id } = data;
-                data.department_id = departmentList.indexOf(department_id) + 1;
-                const sql =
-                    `SELECT employees.id, employees.first_name, employees.last_name, roles.title, employees.manager_id, departments.name
-                    FROM employees
-                    CROSS JOIN roles ON employees.role_id = roles.id
-                    LEFT JOIN departments ON roles.department_id = departments.id
-                    WHERE departments.id = ?`;
-                const params = [data.department_id];
-                db.then(conn => conn.query(sql, params))
-                    .then(([rows, fields]) => {
-                        if (rows.length === 0) {
-                            console.log('There are no employees under this department.');
-                            closeApp();
-                        } else {
-                            console.table(rows);
-                            closeApp();
-                        }
-                    });
+                if (data.department_id === 'None') {
+                    const sql =
+                        `SELECT
+                            A.id AS id,
+                            CONCAT(A.first_name, ' ', A.last_name) AS Name,
+                            roles.title AS Role,
+                            departments.name AS Department,
+                            roles.salary AS Salary,
+                            CONCAT(B.first_name, ' ', B.last_name) AS Manager
+                        FROM employees A
+                        LEFT JOIN roles ON A.role_id = roles.id
+                        LEFT JOIN departments ON roles.department_id = departments.id
+                        LEFT JOIN employees B ON B.id = A.manager_id
+                        WHERE departments.name IS NULL`;
+                    db.then(conn => conn.query(sql))
+                        .then(([rows, fields]) => {
+                            if (rows.length === 0) {
+                                console.log('No employees found.');
+                                closeApp();
+                            } else {
+                                console.table(rows);
+                                closeApp();
+                            }
+                        });
+                } else {
+                    const sql =
+                        `SELECT
+                            A.id AS id,
+                            CONCAT(A.first_name, ' ', A.last_name) AS Name,
+                            roles.title AS Role,
+                            departments.name AS Department,
+                            roles.salary AS Salary,
+                            CONCAT(B.first_name, ' ', B.last_name) AS Manager
+                        FROM employees A
+                        LEFT JOIN roles ON A.role_id = roles.id
+                        LEFT JOIN departments ON roles.department_id = departments.id
+                        LEFT JOIN employees B ON B.id = A.manager_id
+                        WHERE departments.name = ?`;
+                    const params = data.department_id;
+                    db.then(conn => conn.query(sql, params))
+                        .then(([rows, fields]) => {
+                            if (rows.length === 0) {
+                                console.log('There are no employees under this department.');
+                                closeApp();
+                            } else {
+                                console.table(rows);
+                                closeApp();
+                            }
+                        });
+                }
             });
         });
 }
@@ -302,14 +401,12 @@ function viewTotalDepartmentBudget() {
                     choices: departmentList
                 }
             ]).then(data => {
-                let { department_id } = data;
-                data.department_id = departmentList.indexOf(department_id) + 1;
                 const sql =
                     `SELECT roles.salary FROM employees
                     CROSS JOIN roles ON employees.role_id = roles.id
                     LEFT JOIN departments ON roles.department_id = departments.id
-                    WHERE departments.id = ?`;
-                const params = [data.department_id];
+                    WHERE departments.name = ?`;
+                const params = data.department_id;
                 db.then(conn => conn.query(sql, params))
                     .then(([rows, fields]) => {
                         let budget = rows.map(({ salary }) => salary);
@@ -317,7 +414,7 @@ function viewTotalDepartmentBudget() {
                         budget.forEach(element => {
                             totalBudget += parseFloat(element);
                         });
-                        console.log(`The total budget for ${department_id} is $${totalBudget}.`);
+                        console.log(`The total budget for ${data.department_id} is $${totalBudget}.`);
                         closeApp();
                     });
             });
@@ -346,9 +443,13 @@ function addDepartment() {
 
 function addRole() {
     let departmentList = [];
+    let departmentIdList = [];
     const sql = `SELECT * FROM departments`;
     db.then(conn => conn.query(sql))
-        .then(([rows, fields]) => departmentList = rows.map(({ name }) => name)).then(() => {
+        .then(([rows, fields]) => {
+            departmentList = rows.map(({ name }) => name);
+            departmentIdList = rows.map(({ id }) => id);
+        }).then(() => {
             inquirer.prompt([
             {
                 type: 'input',
@@ -368,7 +469,7 @@ function addRole() {
             }
         ]).then(data => {
             let { department_id } = data;
-            data.department_id = departmentList.indexOf(department_id) + 1;
+            data.department_id = departmentIdList[departmentList.indexOf(department_id)];
             const sql =
                 `INSERT INTO roles (title, salary, department_id)
                 VALUES (?, ?, ?)`;
@@ -384,51 +485,79 @@ function addRole() {
 
 function addEmployee() {
     let roleList = [];
+    let employeeList = [];
     const sql = `SELECT * FROM roles`;
     db.then(conn => conn.query(sql))
         .then(([rows, fields]) => roleList = rows.map(({ title }) => title)).then(() => {
-            inquirer.prompt([
-                {
-                    type: 'input',
-                    name: 'first_name',
-                    message: "What is the employee's first name?"
-                },
-                {
-                    type: 'input',
-                    name: 'last_name',
-                    message: "What is the employee's last name?"
-                },
-                {
-                    type: 'list',
-                    name: 'role_id',
-                    message: "What is the employee's role?",
-                    choices: roleList
-                },
-                {
-                    type: 'number',
-                    name: 'manager_id',
-                    message: "What is the employee's manager's ID? (Optional)"
-                }
-        ]).then(data => {
-            let { role_id } = data;
-            const sql =
-                `SELECT id FROM roles
-                WHERE title = ?`;
-            const params = role_id;
-            db.then(conn => conn.query(sql, params))
-                .then(([rows, fields]) => data.role_id = rows[0].id)
+            const sql = `SELECT first_name, last_name FROM employees`;
+            db.then(conn => conn.query(sql))
+                .then(([rows, fields]) => employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name))
                 .then(() => {
-                    const sql =
-                        `INSERT INTO employees (first_name, last_name, role_id, manager_id)
-                        VALUES (?, ?, ?, ?)`;
-                    const params = Object.values(data);
-                    db.then(conn => conn.query(sql, params))
-                        .then(() => {
-                            console.log(`Successfully added ${params[0]} ${params[1]}!`);
-                            closeApp();
+                    employeeList.push('None');
+                    inquirer.prompt([
+                        {
+                            type: 'input',
+                            name: 'first_name',
+                            message: "What is the employee's first name?"
+                        },
+                        {
+                            type: 'input',
+                            name: 'last_name',
+                            message: "What is the employee's last name?"
+                        },
+                        {
+                            type: 'list',
+                            name: 'role_id',
+                            message: "What is the employee's role?",
+                            choices: roleList
+                        },
+                        {
+                            type: 'list',
+                            name: 'manager_id',
+                            message: "Who is the employee's manager?\nNone may be selected.",
+                            choices: employeeList
+                        }
+                    ]).then(data => {
+                        let { role_id, manager_id } = data;
+                        const sql =
+                            `SELECT id FROM roles
+                            WHERE title = ?`;
+                        const params = role_id;
+                        db.then(conn => conn.query(sql, params))
+                            .then(([rows, fields]) => data.role_id = rows[0].id)
+                            .then(() => {
+                                if (manager_id === 'None') {
+                                    const sql =
+                                        `INSERT INTO employees (first_name, last_name, role_id, manager_id)
+                                        VALUES (?, ?, ?, NULL)`;
+                                    const params = [data.first_name, data.last_name, data.role_id];
+                                    db.then(conn => conn.query(sql, params))
+                                        .then(() => {
+                                            console.log(`Successfully added ${params[0]} ${params[1]}!`);
+                                            closeApp();
+                                        });
+                                } else {
+                                    const sql =
+                                        `SELECT id FROM employees
+                                        WHERE first_name = ? AND last_name = ?`;
+                                    const params = manager_id.split(" ");
+                                    db.then(conn => conn.query(sql, params))
+                                        .then(([rows, fields]) => data.manager_id = rows[0].id)
+                                        .then(() => {
+                                            const sql =
+                                                `INSERT INTO employees (first_name, last_name, role_id, manager_id)
+                                                VALUES (?, ?, ?, ?)`;
+                                            const params = Object.values(data);
+                                            db.then(conn => conn.query(sql, params))
+                                                .then(() => {
+                                                    console.log(`Successfully added ${params[0]} ${params[1]}!`);
+                                                    closeApp();
+                                            });
+                                    });
+                                }
                         });
-                })
-        });
+                    });
+            });
     });
 }
 
@@ -488,10 +617,15 @@ function updateEmployeeRole() {
 
 function updateEmployeeManager() {
     let employeeList = [];
-    const sql = `SELECT first_name, last_name FROM employees`;
+    let employeeIdList = [];
+    const sql = `SELECT id, first_name, last_name FROM employees`;
     db.then(conn => conn.query(sql))
-        .then(([rows, fields]) => employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name))
-        .then(() => {
+        .then(([rows, fields]) => {
+            employeeList = rows.map(({ first_name, last_name }) => first_name + " " + last_name);
+            employeeIdList = rows.map(({ id }) => id);
+        }).then(() => {
+            const managerList = [...employeeList];
+            managerList.push('None');
             inquirer.prompt([
                 {
                     type: 'list',
@@ -500,22 +634,36 @@ function updateEmployeeManager() {
                     choices: employeeList
                 },
                 {
-                    type: 'number',
+                    type: 'list',
                     name: 'manager_id',
-                    message: "What is the employee's new manager's ID? (Can be left empty)"
+                    message: "Who is this employee's manager? (None can be selected)",
+                    choices: managerList
                 }
             ]).then(data => {
-                let { employee_id, manager_id } = data;
-                data.employee_id = employeeList.indexOf(employee_id) + 1;
-                const sql =
-                    `UPDATE employees SET manager_id = ?
-                    WHERE id = ?`;
-                const params = [data.manager_id, data.employee_id];
-                db.then(conn => conn.query(sql, params))
-                    .then(() => {
-                        console.log(`Successfully updated ${employee_id}'s manager ID to ${manager_id}!`);
-                        closeApp();
-                    });
+                if (data.manager_id === 'None') {
+                    const sql =
+                        `UPDATE employees SET manager_id = NULL
+                        WHERE id = ?`;
+                    const params = employeeIdList[employeeList.indexOf(data.employee_id)];
+                    db.then(conn => conn.query(sql, params))
+                        .then(() => {
+                            console.log(`Successfully updated ${data.employee_id}'s manager to none!`);
+                            closeApp();
+                        });
+                } else {
+                    const sql =
+                        `UPDATE employees SET manager_id = ?
+                        WHERE id = ?`;
+                    const params = [
+                        employeeIdList[employeeList.indexOf(data.manager_id)],
+                        employeeIdList[employeeList.indexOf(data.employee_id)]
+                    ];
+                    db.then(conn => conn.query(sql, params))
+                        .then(() => {
+                            console.log(`Successfully updated ${data.employee_id}'s manager to ${data.manager_id}!`);
+                            closeApp();
+                        });
+                }
             });
         });
 }
@@ -533,15 +681,13 @@ function deleteDepartment() {
                     choices: departmentList
                 }
             ]).then(data => {
-                let { department_id } = data;
-                data.department_id = departmentList.indexOf(department_id) + 1;
                 const sql =
                     `DELETE FROM departments
-                    WHERE id = ?`;
+                    WHERE name = ?`;
                 const params = [data.department_id];
                 db.then(conn => conn.query(sql, params))
                     .then(() => {
-                        console.log(`Successfully deleted ${department_id}!`);
+                        console.log(`Successfully deleted ${data.department_id}!`);
                         closeApp();
                     });
             });
@@ -561,15 +707,13 @@ function deleteRole() {
                     choices: roleList
                 }
             ]).then(data => {
-                let { role_id } = data;
-                data.role_id = roleList.indexOf(role_id) + 1;
                 const sql =
                     `DELETE FROM roles
-                    WHERE id = ?`;
+                    WHERE title = ?`;
                 const params = [data.role_id];
                 db.then(conn => conn.query(sql, params))
                     .then(() => {
-                        console.log(`Successfully deleted ${role_id}!`);
+                        console.log(`Successfully deleted ${data.role_id}!`);
                         closeApp();
                     });
             });
@@ -592,21 +736,13 @@ function deleteEmployee() {
             ]).then(data => {
                 let { employee_id } = data;
                 const sql =
-                    `SELECT id FROM employees
+                    `DELETE FROM employees
                     WHERE first_name = ? AND last_name = ?`;
                 const params = employee_id.split(" ");
                 db.then(conn => conn.query(sql, params))
-                    .then(([rows, fields]) => data.employee_id = rows[0].id)
                     .then(() => {
-                        const sql =
-                            `DELETE FROM employees
-                            WHERE id = ?`;
-                        const params = data.employee_id;
-                        db.then(conn => conn.query(sql, params))
-                            .then(() => {
-                                console.log(`Successfully deleted ${employee_id}!`);
-                                closeApp();
-                            });
+                        console.log(`Successfully deleted ${employee_id}!`);
+                        closeApp();
                     });
             });
         });
